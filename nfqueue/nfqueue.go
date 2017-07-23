@@ -352,22 +352,6 @@ func (p *Payload) SetVerdict(verdict int) error {
     return nil
 }
 
-// SetVerdictMark issues a verdict for a packet, but a mark can be set
-//
-// Every queued packet _must_ have a verdict specified by userspace.
-func (p *Payload) SetVerdictMark(verdict int, mark uint32) error {
-    //log.Printf("Setting verdict for packet %d: %d mark %lx\n",p.Id,verdict,mark)
-    C.pthread_mutex_lock(&C.mutex)
-    C.nfq_set_verdict2(
-        p.c_qh,
-        C.u_int32_t(p.Id),
-        C.u_int32_t(verdict),
-        C.u_int32_t(mark),
-        0,nil)
-    C.pthread_mutex_unlock(&C.mutex)
-    return nil
-}
-
 // SetVerdictModified issues a verdict for a packet, but replaces the packet
 // with the provided one.
 //
