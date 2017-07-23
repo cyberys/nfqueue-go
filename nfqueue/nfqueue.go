@@ -111,6 +111,7 @@ import (
     "errors"
     "log"
     "unsafe"
+    "sync"
 )
 
 var ErrNotInitialized = errors.New("nfqueue: queue not initialized")
@@ -127,6 +128,7 @@ var NFQNL_COPY_NONE uint8   = C.NFQNL_COPY_NONE
 var NFQNL_COPY_META uint8   = C.NFQNL_COPY_META
 var NFQNL_COPY_PACKET uint8 = C.NFQNL_COPY_PACKET
 
+var lock sync.Mutex
 // Prototype for a NFQUEUE callback.
 // The callback receives the NFQUEUE ID of the packet, and
 // the packet payload.
@@ -333,8 +335,10 @@ func build_payload(c_qh *C.struct_nfq_q_handle, ptr_nfad *unsafe.Pointer) *Paylo
 //
 // Every queued packet _must_ have a verdict specified by userspace.
 func (p *Payload) SetVerdict(verdict int) error {
+    lock.Lock()
     //log.Printf("Setting verdict for packet %d: %d\n",p.Id,verdict)
     C.nfq_set_verdict(p.c_qh,C.u_int32_t(p.Id),C.u_int32_t(verdict),0,nil)
+    lock.Unlock()
     return nil
 }
 
@@ -343,12 +347,14 @@ func (p *Payload) SetVerdict(verdict int) error {
 // Every queued packet _must_ have a verdict specified by userspace.
 func (p *Payload) SetVerdictMark(verdict int, mark uint32) error {
     //log.Printf("Setting verdict for packet %d: %d mark %lx\n",p.Id,verdict,mark)
+    lock.Lock()
     C.nfq_set_verdict2(
         p.c_qh,
         C.u_int32_t(p.Id),
         C.u_int32_t(verdict),
         C.u_int32_t(mark),
         0,nil)
+    lock.Unlock()
     return nil
 }
 
@@ -358,6 +364,7 @@ func (p *Payload) SetVerdictMark(verdict int, mark uint32) error {
 // Every queued packet _must_ have a verdict specified by userspace.
 func (p *Payload) SetVerdictModified(verdict int, data []byte) error {
     //log.Printf("Setting verdict for NEW packet %d: %d\n",p.Id,verdict)
+    lock.Lock()
     C.nfq_set_verdict(
         p.c_qh,
         C.u_int32_t(p.Id),
@@ -365,6 +372,7 @@ func (p *Payload) SetVerdictModified(verdict int, data []byte) error {
         C.u_int32_t(len(data)),
         (*C.uchar)(unsafe.Pointer(&data[0])),
     )
+    lock.Lock()
     return nil
 }
 
