@@ -25,7 +25,8 @@ package nfqueue
 extern int GoCallbackWrapper(void *data, void *nfad);
 static inline ssize_t recv_to(int sockfd, void *buf, size_t len, int flags, int to);
 
-pthread_mutex_t mutex;
+pthread_mutex_t read_mutex;
+pthread_mutex_t write_mutex;
 
 int _process_loop(struct nfq_handle *h,
                   int *fd,
@@ -50,22 +51,23 @@ int _process_loop(struct nfq_handle *h,
         }
 
         while (h && *fd != -1) {
-            pthread_mutex_lock(&mutex);
+            pthread_mutex_lock(&read_mutex);
             rv = recv_to(*fd, buf, sizeof(buf), flags, 500);
             if (rv > 0) {
                 nfq_handle_packet(h, buf, rv);
-                pthread_mutex_unlock(&mutex);
+                pthread_mutex_unlock(&read_mutex);
                 count++;
                 if (max_count > 0 && count >= max_count) {
-                    pthread_mutex_unlock(&mutex);
+                    pthread_mutex_unlock(&read_mutex);
                     break;
                 }
             } else if (rv < 0){
-                pthread_mutex_unlock(&mutex);
+                pthread_mutex_unlock(&read_mutex);
                 return rv;
             }
+            pthread_mutex_unlock(&read_mutex);
         }
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_unlock(&read_mutex);
         return count;
 }
 
@@ -87,19 +89,16 @@ static inline ssize_t recv_to(int sockfd, void *buf, size_t len, int flags, int 
     // Initialize socket set
     FD_ZERO(&readset);
     FD_SET(sockfd, &readset);
-    pthread_mutex_lock(&mutex);
+    
     rv = select(sockfd+1, &readset, (fd_set *) 0, (fd_set *) 0, &timeout);
     // Check status
     if (rv < 0) {
-        pthread_mutex_unlock(&mutex);
         return -1;
     } else if (rv > 0 && FD_ISSET(sockfd, &readset)) {
         // Receive (ensure that the socket is set to non blocking mode!)
         result = recv(sockfd, buf, len, flags);
-        pthread_mutex_unlock(&mutex);
         return result;
     }
-    pthread_mutex_unlock(&mutex);
     return 0;
 }
 
@@ -120,6 +119,7 @@ import "C"
 
 import (
     "errors"
+    "fmt"
     "log"
     "unsafe"
     "syscall"
@@ -174,7 +174,8 @@ func (q *Queue) Init() error {
         log.Println("nfq_open failed")
         return ErrOpenFailed
     }
-    C.pthread_mutex_init(&C.mutex, nil)
+    C.pthread_mutex_init(&C.read_mutex, nil)
+    C.pthread_mutex_init(&C.write_mutex, nil)
     q.c_fd = (*C.int)(C.malloc(C.sizeof_int))
     return nil
 }
@@ -191,7 +192,8 @@ func (q *Queue) Close() {
         C.nfq_close(q.c_h)
         q.c_h = nil
     }
-    C.pthread_mutex_destroy(&C.mutex)
+    C.pthread_mutex_destroy(&C.read_mutex)
+    C.pthread_mutex_destroy(&C.write_mutex)
     C.free(unsafe.Pointer(q.c_fd))
 }
 
@@ -388,10 +390,10 @@ func (p *Payload) GetTimestamp() syscall.Timeval {
 //
 // Every queued packet _must_ have a verdict specified by userspace.
 func (p *Payload) SetVerdict(verdict int) error {
-    C.pthread_mutex_lock(&C.mutex)
+    C.pthread_mutex_lock(&C.write_mutex)
     //log.Printf("Setting verdict for packet %d: %d\n",p.Id,verdict)
     C.nfq_set_verdict(p.c_qh,C.u_int32_t(p.Id),C.u_int32_t(verdict),0,nil)
-    C.pthread_mutex_unlock(&C.mutex)
+    C.pthread_mutex_unlock(&C.write_mutex)
     return nil
 }
 
@@ -401,6 +403,7 @@ func (p *Payload) SetVerdict(verdict int) error {
 // Every queued packet _must_ have a verdict specified by userspace.
 func (p *Payload) SetVerdictModified(verdict int, data []byte) error {
     //log.Printf("Setting verdict for NEW packet %d: %d\n",p.Id,verdict)
+    C.pthread_mutex_lock(&C.write_mutex)
     C.nfq_set_verdict(
         p.c_qh,
         C.u_int32_t(p.Id),
@@ -408,6 +411,7 @@ func (p *Payload) SetVerdictModified(verdict int, data []byte) error {
         C.u_int32_t(len(data)),
         (*C.uchar)(unsafe.Pointer(&data[0])),
     )
+    C.pthread_mutex_unlock(&C.write_mutex)
     return nil
 }
 
