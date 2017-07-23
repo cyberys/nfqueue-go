@@ -1,12 +1,31 @@
+sudo: required
+dist: trusty
+
 language: go
 
 go:
-  - 1.6
+  - 1.7.1
   - tip
+
+branches:
+  only:
+  - master
+  - dev
+  - dev-prepare-merge
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - go: tip
+
 install:
- - go get github.com/google/gopacket
- - go get github.com/google/gopacket/layers
- - go get github.com/chifflier/nfqueue-go/nfqueue
+  - go get -v github.com/google/gopacket
+  - go get -v github.com/google/gopacket/layers
+
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y pkg-config libnfnetlink-dev libnetfilter-queue-dev
+
+script:
+  - go build nfqueue/test_nfqueue/test_nfqueue.go
+  - go build nfqueue/test_nfqueue_gopacket/test_nfqueue.go
