@@ -31,11 +31,8 @@ int _process_loop(struct nfq_handle *h,
                   int *fd,
                   int flags,
                   int max_count) {
-        int rv;
+        int rv = 0, count = 0, ret = 0;
         char buf[65535];
-        int count;
-
-        count = 0;
 
         (*fd) = nfq_fd(h);
         if (fd < 0) {
@@ -53,16 +50,19 @@ int _process_loop(struct nfq_handle *h,
             pthread_mutex_lock(&read_mutex);
             rv = recv_to(*fd, buf, sizeof(buf), flags, 500);
             if (rv > 0) {
-                nfq_handle_packet(h, buf, rv);
+                ret = nfq_handle_packet(h, buf, rv);
                 pthread_mutex_unlock(&read_mutex);
                 count++;
                 if (max_count > 0 && count >= max_count) {
-                    pthread_mutex_unlock(&read_mutex);
                     break;
                 }
             } else if (rv < 0){
                 pthread_mutex_unlock(&read_mutex);
                 return rv;
+            }
+            if (ret < 0) {
+                pthread_mutex_unlock(&read_mutex);
+                return ret;
             }
             pthread_mutex_unlock(&read_mutex);
         }
@@ -179,6 +179,9 @@ func (q *Queue) Init() error {
 }
 
 // SetCallback sets the callback function, fired when a packet is received.
+// Returning from the callback and evaluation its return value races with the netlink socket
+// receiving a new packet from the kernel. Do not rely on the execution of the callback,
+// at the end of which you return a negative value, to be the last execution of it.
 func (q *Queue) SetCallback(cb Callback) error {
     q.cb = cb
     return nil
@@ -253,6 +256,8 @@ func (q *Queue) CreateQueue(queue_num uint16) error {
 //
 // This also unbind from the nfqueue handler, so you don't have to call Unbind()
 // Note that errors from this function can usually be ignored.
+// WARNING: This function races with netlink sending messages and triggering the execution of the callback function!
+// DO NOT rely on the callback function's negative return value to stop the netlink lib from calling the callback (because it doesn't)
 func (q *Queue) DestroyQueue() error {
     if (q.c_qh == nil) {
         return ErrNotInitialized
