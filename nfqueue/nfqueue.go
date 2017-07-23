@@ -303,8 +303,11 @@ func (q *Queue) SetQueueMaxLen(maxlen uint32) error {
     if (q.c_qh == nil) {
         return ErrNotInitialized
     }
-    C.nfq_set_queue_maxlen(q.c_qh,C.u_int32_t(maxlen))
-    return nil
+    if C.nfq_set_queue_maxlen(q.c_qh,C.u_int32_t(maxlen)) == -1 {
+        return errors.New("Could not set maximum queue length")
+    } else {
+        return nil
+    }
 }
 
 // Main loop: Loop starts a loop, receiving kernel events
