@@ -8,11 +8,9 @@
 // BUG(nfqueue): This package currently displays lots of debug information
 package nfqueue
 
-// XXX we should use something like
-// pkg-config --libs libnetfilter_queue
-
-// #cgo pkg-config: libnetfilter_queue
 /*
+#cgo pkg-config: libnetfilter_queue
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
