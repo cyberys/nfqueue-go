@@ -189,7 +189,6 @@ func (q *Queue) SetCallback(cb Callback) error {
 
 func (q *Queue) Close() {
     if (q.c_h != nil) {
-        log.Println("Closing queue")
         C.nfq_close(q.c_h)
         q.c_h = nil
     }
@@ -205,7 +204,6 @@ func (q *Queue) Bind(af_family int) error {
     if (q.c_h == nil) {
         return ErrNotInitialized
     }
-    log.Println("Binding to selected family")
     /* Errors in nfq_bind_pf are non-fatal ...
      * This function just tells the kernel that nfnetlink_queue is
      * the chosen module to queue packets to userspace.
@@ -221,7 +219,6 @@ func (q *Queue) Unbind(af_family int) error {
     if (q.c_h == nil) {
         return ErrNotInitialized
     }
-    log.Println("Unbinding to selected family")
     rc := C.nfq_unbind_pf(q.c_h,C.u_int16_t(af_family))
     if (rc < 0) {
         log.Println("nfq_unbind_pf failed")
@@ -241,7 +238,6 @@ func (q *Queue) CreateQueue(queue_num uint16) error {
     if (q.cb == nil) {
         return ErrNotInitialized
     }
-    log.Println("Creating queue", queue_num)
     q.c_qh = C.nfq_create_queue(q.c_h,C.u_int16_t(queue_num),(*C.nfq_callback)(C.c_nfq_cb),unsafe.Pointer(q))
     if (q.c_qh == nil) {
         log.Println("nfq_create_queue failed", queue_num)
@@ -262,7 +258,6 @@ func (q *Queue) DestroyQueue() error {
     if (q.c_qh == nil) {
         return ErrNotInitialized
     }
-    log.Println("Destroy queue")
     rc := C.nfq_destroy_queue(q.c_qh)
     if (rc < 0) {
         log.Println("nfq_destroy_queue failed")
@@ -331,7 +326,6 @@ func (q *Queue) Loop() error {
         return ErrNotInitialized
     }
 
-    log.Println("Start Loop")
     ret := C._process_loop(q.c_h, q.c_fd, 0, -1)
     if ret < 0 {
         return ErrRuntime
@@ -340,7 +334,6 @@ func (q *Queue) Loop() error {
 }
 
 func (q *Queue) StopLoop() {
-    log.Println("Stop Loop")
     C._stop_loop(q.c_fd)
 }
 

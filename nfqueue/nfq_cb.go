@@ -23,15 +23,11 @@ This function must _nerver_ be called directly.
 */
 //export GoCallbackWrapper
 func GoCallbackWrapper(ptr_q *unsafe.Pointer, ptr_nfad *unsafe.Pointer) int {
-    fmt.Println("Running GoCallbackWrapper")
     q := (*Queue)(unsafe.Pointer(ptr_q))
     payload := build_payload(q.c_qh, ptr_nfad)
     if err := q.cb(payload); err != nil {
-        fmt.Println("Received error in GoCallbackWrapper: ", err)
-        fmt.Println("Returning -1 in nfq_cb.go")
         return -1
     }
-    fmt.Println("Returning 0 in nfq_cb.go")
     return 0
 }
 
