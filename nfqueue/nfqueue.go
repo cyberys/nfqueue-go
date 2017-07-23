@@ -368,24 +368,6 @@ func (p *Payload) SetVerdictMark(verdict int, mark uint32) error {
     return nil
 }
 
-// SetVerdictModified issues a verdict for a packet, but replaces the packet
-// with the provided one.
-//
-// Every queued packet _must_ have a verdict specified by userspace.
-func (p *Payload) SetVerdictModified(verdict int, data []byte) error {
-    //log.Printf("Setting verdict for NEW packet %d: %d\n",p.Id,verdict)
-    C.pthread_mutex_lock(&C.mutex)
-    C.nfq_set_verdict(
-        p.c_qh,
-        C.u_int32_t(p.Id),
-        C.u_int32_t(verdict),
-        C.u_int32_t(len(data)),
-        (*C.uchar)(unsafe.Pointer(&data[0])),
-    )
-    C.pthread_mutex_unlock(&C.mutex)
-    return nil
-}
-
 // Returns the packet mark
 func (p *Payload) GetNFMark() uint32 {
     return uint32(C.nfq_get_nfmark(p.nfad))
