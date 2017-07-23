@@ -20,6 +20,7 @@ package nfqueue
 #include <pthread.h>
 #include <time.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
+#include <stdint.h>
 
 extern int GoCallbackWrapper(void *data, void *nfad);
 static inline ssize_t recv_to(int sockfd, void *buf, size_t len, int flags, int to);
@@ -30,12 +31,18 @@ pthread_mutex_t write_mutex;
 int _process_loop(struct nfq_handle *h,
                   int *fd,
                   int flags,
-                  int max_count) {
+                  int max_count,
+                  uint64_t buf_len) {
         int rv = 0, count = 0, ret = 0;
-        char buf[65535];
+        void *buf = malloc(buf_len);
+
+        if (buf == NULL) {
+            fprintf(stderr, "Could not allocate enough memory (%llu byte)for the buffer\n", buf_len);
+        }
 
         (*fd) = nfq_fd(h);
         if (fd < 0) {
+            free(buf);
             return -1;
         }
 
@@ -43,12 +50,13 @@ int _process_loop(struct nfq_handle *h,
         int opt = 1;
         rv = setsockopt(*fd, SOL_NETLINK, NETLINK_NO_ENOBUFS, &opt, sizeof(int));
         if (rv == -1) {
+            free(buf);
             return -1;
         }
 
         while (h && *fd != -1) {
             pthread_mutex_lock(&read_mutex);
-            rv = recv_to(*fd, buf, sizeof(buf), flags, 500);
+            rv = recv_to(*fd, buf, buf_len, flags, 500);
             if (rv > 0) {
                 ret = nfq_handle_packet(h, buf, rv);
                 pthread_mutex_unlock(&read_mutex);
@@ -58,15 +66,18 @@ int _process_loop(struct nfq_handle *h,
                 }
             } else if (rv < 0){
                 pthread_mutex_unlock(&read_mutex);
+                free(buf);
                 return rv;
             }
             if (ret < 0) {
                 pthread_mutex_unlock(&read_mutex);
+                free(buf);
                 return ret;
             }
             pthread_mutex_unlock(&read_mutex);
         }
         pthread_mutex_unlock(&read_mutex);
+        free(buf);
         return count;
 }
 
@@ -146,6 +157,7 @@ var NFQNL_COPY_NONE uint8   = C.NFQNL_COPY_NONE
 var NFQNL_COPY_META uint8   = C.NFQNL_COPY_META
 var NFQNL_COPY_PACKET uint8 = C.NFQNL_COPY_PACKET
 
+var defaultBufLen C.uint64_t = 65535
 // Prototype for a NFQUEUE callback.
 // The callback receives the NFQUEUE ID of the packet, and
 // the packet payload.
@@ -159,6 +171,7 @@ type Queue struct {
     c_h  (*C.struct_nfq_handle)
     c_qh (*C.struct_nfq_q_handle)
     c_fd (*C.int)
+    c_buf_len C.uint64_t 
 
     cb Callback
 }
@@ -175,6 +188,7 @@ func (q *Queue) Init() error {
     C.pthread_mutex_init(&C.read_mutex, nil)
     C.pthread_mutex_init(&C.write_mutex, nil)
     q.c_fd = (*C.int)(C.malloc(C.sizeof_int))
+    q.c_buf_len = defaultBufLen
     return nil
 }
 
@@ -272,6 +286,15 @@ func (q *Queue) DestroyQueue() error {
     return nil
 }
 
+// SetBufLen sets the buffer length for receiving packets from netlink socket.
+
+func (q *Queue) SetBufLen(bufLen C.uint64_t) error {
+    if (q.c_h == nil) {
+        return ErrNotInitialized
+    }
+    q.c_buf_len = C.uint64_t(bufLen)
+    return nil
+}
 // SetMode sets the amount of packet data that nfqueue copies to userspace
 //
 // Default mode is NFQNL_COPY_PACKET
@@ -332,7 +355,7 @@ func (q *Queue) Loop() error {
     }
 
     log.Println("Start Loop")
-    ret := C._process_loop(q.c_h, q.c_fd, 0, -1)
+    ret := C._process_loop(q.c_h, q.c_fd, 0, -1, q.c_buf_len)
     if ret < 0 {
         return ErrRuntime
     }
