@@ -4,8 +4,7 @@
 //
 // This provides an easy way to filter packets from userspace, and use tools
 // or libraries that are not accessible from kernelspace.
-//
-// BUG(nfqueue): This package currently displays lots of debug information
+
 package nfqueue
 
 /*
