@@ -277,8 +277,11 @@ func (q *Queue) SetMode(mode uint8) error {
     if (q.c_qh == nil) {
         return ErrNotInitialized
     }
-    C.nfq_set_mode(q.c_qh,C.u_int8_t(mode),0xffff)
-    return nil
+    if C.nfq_set_mode(q.c_qh,C.u_int8_t(mode),0xffff) == -1 {
+        return errors.New("Could not set queue mode")
+    } else {
+        return nil
+    }
 }
 
 
