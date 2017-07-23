@@ -2,7 +2,6 @@ package nfqueue
 
 import (
     "unsafe"
-    "fmt"
 )
 
 import "C"
