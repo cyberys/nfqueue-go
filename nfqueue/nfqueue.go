@@ -19,6 +19,7 @@ package nfqueue
 #include <arpa/inet.h>
 #include <linux/netfilter.h>
 #include <pthread.h>
+#include <time.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
 extern int GoCallbackWrapper(void *data, void *nfad);
@@ -121,6 +122,7 @@ import (
     "errors"
     "log"
     "unsafe"
+    "syscall"
 )
 
 var ErrNotInitialized = errors.New("nfqueue: queue not initialized")
@@ -341,6 +343,18 @@ func build_payload(c_qh *C.struct_nfq_q_handle, ptr_nfad *unsafe.Pointer) *Paylo
     return p
 }
 
+/* GetTimestamp gives you the timestamp of the packet.
+ *
+ */
+func (p *Payload) GetTimestamp() syscall.Timeval {
+    Ctime := (*C.struct_timeval)(C.malloc(C.sizeof_struct_timeval))
+    var timeval syscall.Timeval
+    C.nfq_get_timestamp(p.nfad, Ctime)
+    timeval.Sec = int64(Ctime.tv_sec)
+    timeval.Usec = int64(Ctime.tv_usec)
+    C.free(unsafe.Pointer(Ctime))
+    return timeval
+}
 // SetVerdict issues a verdict for a packet.
 //
 // Every queued packet _must_ have a verdict specified by userspace.
