@@ -135,6 +135,15 @@ var NF_QUEUE = C.NF_QUEUE
 var NF_REPEAT = C.NF_REPEAT
 var NF_STOP = C.NF_STOP
 
+var NFQA_CFG_F_FAIL_OPEN  uint32  = C.NFQA_CFG_F_FAIL_OPEN
+var NFQA_CFG_F_CONNTRACK  uint32  = C.NFQA_CFG_F_CONNTRACK
+/* These three variables seem not to be determinable by cgo, so they are statically
+ * defined here. The values are taken from the ĺibnetfilter_queue source code (They are macros)
+ */
+var NFQA_CFG_F_GSO        uint32  = 1<<2
+var NFQA_CFG_F_UID_GID    uint32  = 1<<3
+var NFQA_CFG_F_SECCTX     uint32  = 1<<4
+
 var NFQNL_COPY_NONE uint8   = C.NFQNL_COPY_NONE
 var NFQNL_COPY_META uint8   = C.NFQNL_COPY_META
 var NFQNL_COPY_PACKET uint8 = C.NFQNL_COPY_PACKET
@@ -270,6 +279,20 @@ func (q *Queue) SetMode(mode uint8) error {
     }
     C.nfq_set_mode(q.c_qh,C.u_int8_t(mode),0xffff)
     return nil
+}
+
+
+func (q *Queue) SetQueueFlags(mask, flags uint32) error {
+    if q.c_h == nil {
+        return ErrNotInitialized
+    }
+
+    if q.c_qh == nil {
+        return ErrNotInitialized
+    }
+
+    _, err := C.nfq_set_queue_flags(q.c_qh, C.uint32_t(mask), C.uint32_t(flags))
+    return err
 }
 
 // SetQueueMaxLen fixes the number of packets the kernel will store before internally before dropping upcoming packets
