@@ -18,10 +18,13 @@ package nfqueue
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <linux/netfilter.h>
+#include <pthread.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
 extern int GoCallbackWrapper(void *data, void *nfad);
 static inline ssize_t recv_to(int sockfd, void *buf, size_t len, int flags, int to);
+
+pthread_mutex_t mutex;
 
 int _process_loop(struct nfq_handle *h,
                   int *fd,
@@ -46,17 +49,22 @@ int _process_loop(struct nfq_handle *h,
         }
 
         while (h && *fd != -1) {
+            pthread_mutex_lock(&mutex);
             rv = recv_to(*fd, buf, sizeof(buf), flags, 500);
             if (rv > 0) {
                 nfq_handle_packet(h, buf, rv);
+                pthread_mutex_unlock(&mutex);
                 count++;
                 if (max_count > 0 && count >= max_count) {
+                    pthread_mutex_unlock(&mutex);
                     break;
                 }
             } else if (rv < 0){
+                pthread_mutex_unlock(&mutex);
                 return rv;
             }
         }
+        pthread_mutex_unlock(&mutex);
         return count;
 }
 
@@ -78,17 +86,19 @@ static inline ssize_t recv_to(int sockfd, void *buf, size_t len, int flags, int 
     // Initialize socket set
     FD_ZERO(&readset);
     FD_SET(sockfd, &readset);
-
+    pthread_mutex_lock(&mutex);
     rv = select(sockfd+1, &readset, (fd_set *) 0, (fd_set *) 0, &timeout);
     // Check status
     if (rv < 0) {
+        pthread_mutex_unlock(&mutex);
         return -1;
     } else if (rv > 0 && FD_ISSET(sockfd, &readset)) {
         // Receive (ensure that the socket is set to non blocking mode!)
         result = recv(sockfd, buf, len, flags);
+        pthread_mutex_unlock(&mutex);
         return result;
     }
-
+    pthread_mutex_unlock(&mutex);
     return 0;
 }
 
@@ -111,7 +121,6 @@ import (
     "errors"
     "log"
     "unsafe"
-    "sync"
 )
 
 var ErrNotInitialized = errors.New("nfqueue: queue not initialized")
@@ -128,7 +137,6 @@ var NFQNL_COPY_NONE uint8   = C.NFQNL_COPY_NONE
 var NFQNL_COPY_META uint8   = C.NFQNL_COPY_META
 var NFQNL_COPY_PACKET uint8 = C.NFQNL_COPY_PACKET
 
-var lock sync.Mutex
 // Prototype for a NFQUEUE callback.
 // The callback receives the NFQUEUE ID of the packet, and
 // the packet payload.
@@ -155,6 +163,7 @@ func (q *Queue) Init() error {
         log.Println("nfq_open failed")
         return ErrOpenFailed
     }
+    C.pthread_mutex_init(&C.mutex, nil)
     q.c_fd = (*C.int)(C.malloc(C.sizeof_int))
     return nil
 }
@@ -171,6 +180,7 @@ func (q *Queue) Close() {
         C.nfq_close(q.c_h)
         q.c_h = nil
     }
+    C.pthread_mutex_destroy(&C.mutex)
     C.free(unsafe.Pointer(q.c_fd))
 }
 
@@ -335,10 +345,10 @@ func build_payload(c_qh *C.struct_nfq_q_handle, ptr_nfad *unsafe.Pointer) *Paylo
 //
 // Every queued packet _must_ have a verdict specified by userspace.
 func (p *Payload) SetVerdict(verdict int) error {
-    lock.Lock()
+    C.pthread_mutex_lock(&C.mutex)
     //log.Printf("Setting verdict for packet %d: %d\n",p.Id,verdict)
     C.nfq_set_verdict(p.c_qh,C.u_int32_t(p.Id),C.u_int32_t(verdict),0,nil)
-    lock.Unlock()
+    C.pthread_mutex_unlock(&C.mutex)
     return nil
 }
 
@@ -347,14 +357,14 @@ func (p *Payload) SetVerdict(verdict int) error {
 // Every queued packet _must_ have a verdict specified by userspace.
 func (p *Payload) SetVerdictMark(verdict int, mark uint32) error {
     //log.Printf("Setting verdict for packet %d: %d mark %lx\n",p.Id,verdict,mark)
-    lock.Lock()
+    C.pthread_mutex_lock(&C.mutex)
     C.nfq_set_verdict2(
         p.c_qh,
         C.u_int32_t(p.Id),
         C.u_int32_t(verdict),
         C.u_int32_t(mark),
         0,nil)
-    lock.Unlock()
+    C.pthread_mutex_unlock(&C.mutex)
     return nil
 }
 
@@ -364,7 +374,7 @@ func (p *Payload) SetVerdictMark(verdict int, mark uint32) error {
 // Every queued packet _must_ have a verdict specified by userspace.
 func (p *Payload) SetVerdictModified(verdict int, data []byte) error {
     //log.Printf("Setting verdict for NEW packet %d: %d\n",p.Id,verdict)
-    lock.Lock()
+    C.pthread_mutex_lock(&C.mutex)
     C.nfq_set_verdict(
         p.c_qh,
         C.u_int32_t(p.Id),
@@ -372,7 +382,7 @@ func (p *Payload) SetVerdictModified(verdict int, data []byte) error {
         C.u_int32_t(len(data)),
         (*C.uchar)(unsafe.Pointer(&data[0])),
     )
-    lock.Lock()
+    C.pthread_mutex_unlock(&C.mutex)
     return nil
 }
 
