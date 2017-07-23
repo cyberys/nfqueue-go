@@ -119,7 +119,6 @@ import "C"
 
 import (
     "errors"
-    "fmt"
     "log"
     "unsafe"
     "syscall"
