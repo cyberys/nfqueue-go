@@ -231,7 +231,7 @@ func (q *Queue) Unbind(af_family int) error {
 //
 // The queue must be initialized (using Init) and bound (using Bind), and
 // a callback function must be set (using SetCallback).
-func (q *Queue) CreateQueue(queue_num int) error {
+func (q *Queue) CreateQueue(queue_num uint16) error {
     if (q.c_h == nil) {
         return ErrNotInitialized
     }
