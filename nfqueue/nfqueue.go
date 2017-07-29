@@ -128,6 +128,7 @@ import "C"
 
 import (
     "errors"
+    "fmt"
     "log"
     "unsafe"
     "syscall"
@@ -423,14 +424,34 @@ func (p *Payload) SetVerdict(verdict int) error {
 func (p *Payload) SetVerdictModified(verdict int, data []byte) error {
     //log.Printf("Setting verdict for NEW packet %d: %d\n",p.Id,verdict)
     C.pthread_mutex_lock(&C.write_mutex)
-    C.nfq_set_verdict(
+    ret := int(C.nfq_set_verdict(
         p.c_qh,
         C.u_int32_t(p.Id),
         C.u_int32_t(verdict),
         C.u_int32_t(len(data)),
         (*C.uchar)(unsafe.Pointer(&data[0])),
-    )
+    ))
     C.pthread_mutex_unlock(&C.write_mutex)
+    if ret == -1 {
+        return fmt.Errorf("An error occured when setting the verdict on packet %v", p.Id)
+    }
+    return nil
+}
+
+func (p *Payload) SetVerdict2(verdict int, data []byte, mark uint32) error {
+    C.pthread_mutex_lock(&C.write_mutex)
+    ret := int(C.nfq_set_verdict2(
+        p.c_qh,
+        C.u_int32_t(p.Id),
+        C.u_int32_t(verdict),
+        C.u_int32_t(mark),
+        C.u_int32_t(len(data)),
+        (*C.uchar)(unsafe.Pointer(&data[0])),
+    ))
+    C.pthread_mutex_unlock(&C.write_mutex)
+    if ret == -1 {
+        return fmt.Errorf("An error occured when setting the verdict on packet %v", p.Id)
+    }
     return nil
 }
 
