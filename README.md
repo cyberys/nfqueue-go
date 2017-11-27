@@ -21,7 +21,7 @@ To use the library, a program must
 ## Using library
 
 ```
-import "github.com/chifflier/nfqueue-go/nfqueue"
+import "github.com/Thermi/nfqueue-go/nfqueue"
 ```
 
 ## Example
