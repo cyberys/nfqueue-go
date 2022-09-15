@@ -280,6 +280,22 @@ func (q *Queue) DestroyQueue() error {
     return nil
 }
 
+// SetQueueBuffer sets the default socket buffer size with nfnl_rcvbufsiz.
+
+func (q *Queue) SetQueueBuffer(buffersize uint32) error {
+    if q.c_h == nil {
+        return ErrNotInitialized
+    }
+
+    if q.c_qh == nil {
+        return ErrNotInitialized
+    }
+
+    C.nfnl_rcvbufsiz(C.nfq_nfnlh(q.c_h), C.uint(buffersize))
+
+    return nil
+}
+
 // SetBufLen sets the buffer length for receiving packets from netlink socket.
 
 func (q *Queue) SetBufLen(bufLen C.uint64_t) error {
