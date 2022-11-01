@@ -128,7 +128,7 @@ import "C"
 
 import (
     "errors"
-    "log"
+     log "rlog"
     "unsafe"
     "syscall"
 )
@@ -181,7 +181,7 @@ func (q *Queue) Init() error {
     //log.Println("Opening queue")
     q.c_h = C.nfq_open()
     if (q.c_h == nil) {
-        log.Println("nfq_open failed")
+        log.Error("nfq_open failed")
         return ErrOpenFailed
     }
     C.pthread_mutex_init(&C.read_mutex, nil)
@@ -234,7 +234,7 @@ func (q *Queue) Unbind(af_family int) error {
     }
     rc := C.nfq_unbind_pf(q.c_h,C.u_int16_t(af_family))
     if (rc < 0) {
-        log.Println("nfq_unbind_pf failed")
+        log.Error("nfq_unbind_pf failed")
         return ErrRuntime
     }
     return nil
@@ -253,7 +253,7 @@ func (q *Queue) CreateQueue(queue_num uint16) error {
     }
     q.c_qh = C.nfq_create_queue(q.c_h,C.u_int16_t(queue_num),(*C.nfq_callback)(C.c_nfq_cb),unsafe.Pointer(q))
     if (q.c_qh == nil) {
-        log.Println("nfq_create_queue failed", queue_num)
+        log.Error("nfq_create_queue failed %v", queue_num)
         return ErrRuntime
     }
     // Default mode
@@ -273,7 +273,7 @@ func (q *Queue) DestroyQueue() error {
     }
     rc := C.nfq_destroy_queue(q.c_qh)
     if (rc < 0) {
-        log.Println("nfq_destroy_queue failed")
+        log.Error("nfq_destroy_queue failed")
         return ErrRuntime
     }
     q.c_qh = nil
