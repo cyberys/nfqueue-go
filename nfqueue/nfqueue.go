@@ -98,7 +98,7 @@ static inline ssize_t recv_to(int sockfd, void *buf, size_t len, int flags, int 
     // Initialize socket set
     FD_ZERO(&readset);
     FD_SET(sockfd, &readset);
-    
+
     rv = select(sockfd+1, &readset, (fd_set *) 0, (fd_set *) 0, &timeout);
     // Check status
     if (rv < 0 && errno != EINTR) {
@@ -128,7 +128,7 @@ import "C"
 
 import (
     "errors"
-     log "rlog"
+     log "github.com/cyberys/rlog"
     "unsafe"
     "syscall"
 )
@@ -170,7 +170,7 @@ type Queue struct {
     c_h  (*C.struct_nfq_handle)
     c_qh (*C.struct_nfq_q_handle)
     c_fd (*C.int)
-    c_buf_len C.uint64_t 
+    c_buf_len C.uint64_t
 
     cb Callback
 }
